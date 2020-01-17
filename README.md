@@ -6,6 +6,7 @@ work.az_mfg-AWCU359 download run
 
 work.az_mfg-AWCU427 download run
 
+
 [features]
 
 1.mfg wifi
@@ -13,3 +14,4 @@ work.az_mfg-AWCU427 download run
 2.mfg bluetooth
 
 3.use button to switch wifi/bluetooth mode
+
