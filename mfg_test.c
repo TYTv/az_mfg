@@ -67,11 +67,19 @@
 /******************************************************
  *                   Enumerations
  ******************************************************/
-
+enum mfgselect
+{
+    mfg_wifi,
+    mfg_blue,
+    mfg_num,
+};
 /******************************************************
  *                 Type Definitions
  ******************************************************/
-
+typedef struct
+{
+    uint8_t dct_next_mfg_mode;
+} dct_mfg_mode;
 /******************************************************
  *                    Structures
  ******************************************************/
@@ -98,37 +106,89 @@ static const wiced_uart_config_t const stdio1_config =
 /******************************************************
  *               Function Definitions
  ******************************************************/
+void reboot_now(void)
+{
+    WPRINT_APP_INFO(( "Rebooting...\n" ));
+    wiced_rtos_delay_milliseconds( 1000 );
+    wiced_framework_reboot();
+}
+uint8_t read_mfg_dct(void)
+{
+    dct_mfg_mode* app_dct = NULL;
+    uint8_t result;
+
+    wiced_dct_read_lock( (void**) &app_dct, WICED_FALSE, DCT_APP_SECTION, 0, sizeof( *app_dct ) );
+
+    result = app_dct->dct_next_mfg_mode;
+
+    wiced_dct_read_unlock( app_dct, WICED_FALSE );
+
+    return result;
+}
+void write_mfg_dct(uint8_t mode)
+{
+    dct_mfg_mode* app_dct = NULL;
+    uint32_t time_before_writing;
+    uint32_t time_after_writing;
+    uint8_t before_mode;
+
+    wiced_dct_read_lock( (void**) &app_dct, WICED_TRUE, DCT_APP_SECTION, 0, sizeof( *app_dct ) );
+
+    before_mode = app_dct->dct_next_mfg_mode;
+    app_dct->dct_next_mfg_mode = mode;
+    wiced_time_get_time(&time_before_writing);
+    wiced_dct_write( (const void*) &(app_dct->dct_next_mfg_mode), DCT_APP_SECTION, OFFSETOF(dct_mfg_mode, dct_next_mfg_mode), sizeof(uint8_t) );
+    wiced_time_get_time(&time_after_writing);
+
+    wiced_dct_read_unlock( app_dct, WICED_TRUE );
+
+    WPRINT_APP_INFO( ( "Change mfg mode %d -> %d (time=%ldms)\r\n", before_mode, mode, time_after_writing - time_before_writing) );
+}
+
 void application_start( )
 {
-
     wiced_gpio_init( SEL_BTN, INPUT_PULL_UP );
-    if ( wiced_gpio_input_get( SEL_BTN ) == WICED_TRUE )
+    wiced_rtos_delay_milliseconds( 1000 );
+
+    uint8_t mode = read_mfg_dct();
+
+    if ( wiced_gpio_input_get( SEL_BTN ) == WICED_FALSE ){
+        WPRINT_APP_INFO( ( "Waiting for release button, then reboot switch mfg mode.\r\n" ) );
+        while( wiced_gpio_input_get( SEL_BTN ) == WICED_FALSE ){;}
+        mode++;
+        if( mode >= mfg_num ){
+            mode = mfg_wifi;
+        }
+        write_mfg_dct(mode);
+        reboot_now();
+    }
+
+    switch( mode )
     {
+        case mfg_wifi:
+            wiced_init( );
 
-        wiced_init( );
+            WPRINT_APP_INFO( ( "\r\n------ entry mfg wifi mode ------\r\n" ) );
 
-        WPRINT_APP_INFO( ( "\r\n------ entry mfg wifi mode ------\r\n" ) );
-
-        /* Disable WIFI sleeping */
-        wwd_wifi_set_iovar_value( IOVAR_STR_MPC, 0, WWD_STA_INTERFACE );
+            /* Disable WIFI sleeping */
+            wwd_wifi_set_iovar_value( IOVAR_STR_MPC, 0, WWD_STA_INTERFACE );
 
 #ifdef MFG_TEST_ENABLE_ETHERNET_SUPPORT
-        wiced_wlu_server_eth_start( ETHERNET_PORT, 0);
+            wiced_wlu_server_eth_start( ETHERNET_PORT, 0);
 #else
-        wiced_wlu_server_serial_start( STDIO_UART );
+            wiced_wlu_server_serial_start( STDIO_UART );
 #endif
+            break;
+        case mfg_blue:
+            wiced_core_init( ); /* Initialise WICED */
 
-    }
-    else
-    {
-        /* Initialise WICED */
-        wiced_core_init( );
+            WPRINT_APP_INFO( ( "\r\n------ entry mfg bluetooth mode ------\r\n" ) );
 
-        WPRINT_APP_INFO( ( "\r\n------ entry mfg bluetooth mode ------\r\n" ) );
-
-        /* Enter BT manufacturing test mode */
-        bt_mfgtest_start( &stdio1_config );
-
+            /* Enter BT manufacturing test mode */
+            bt_mfgtest_start( &stdio1_config );
+            break;
+        default:
+            break;
     }
 
 }
