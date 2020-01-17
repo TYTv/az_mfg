@@ -188,6 +188,8 @@ void application_start( )
             bt_mfgtest_start( &stdio1_config );
             break;
         default:
+            write_mfg_dct(mfg_wifi);
+            reboot_now();
             break;
     }
 
