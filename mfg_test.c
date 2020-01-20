@@ -144,24 +144,26 @@ void write_mfg_dct(uint8_t mode)
 
     WPRINT_APP_INFO( ( "Change mfg mode %d -> %d (time=%ldms)\r\n", before_mode, mode, time_after_writing - time_before_writing) );
 }
+static void button_press_callback( void* arg )
+{
+    uint8_t mode = read_mfg_dct();
+
+    mode++;
+    if( mode >= mfg_num ){
+        mode = mfg_wifi;
+    }
+    write_mfg_dct(mode);
+    reboot_now();
+}
 
 void application_start( )
 {
     wiced_gpio_init( SEL_BTN, INPUT_PULL_UP );
-    wiced_rtos_delay_milliseconds( 1000 );
+//    wiced_rtos_delay_milliseconds( 1000 );
 
     uint8_t mode = read_mfg_dct();
 
-    if ( wiced_gpio_input_get( SEL_BTN ) == WICED_FALSE ){
-        WPRINT_APP_INFO( ( "Waiting for release button, then reboot switch mfg mode.\r\n" ) );
-        while( wiced_gpio_input_get( SEL_BTN ) == WICED_FALSE ){;}
-        mode++;
-        if( mode >= mfg_num ){
-            mode = mfg_wifi;
-        }
-        write_mfg_dct(mode);
-        reboot_now();
-    }
+    wiced_gpio_input_irq_enable( SEL_BTN, IRQ_TRIGGER_FALLING_EDGE, button_press_callback, NULL );
 
     switch( mode )
     {
