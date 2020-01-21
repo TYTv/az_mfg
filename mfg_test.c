@@ -159,7 +159,7 @@ static void button_press_callback( void* arg )
 void application_start( )
 {
     wiced_gpio_init( SEL_BTN, INPUT_PULL_UP );
-//    wiced_rtos_delay_milliseconds( 1000 );
+    wiced_rtos_delay_milliseconds( 1000 );
 
     uint8_t mode = read_mfg_dct();
 
